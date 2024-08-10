@@ -1,0 +1,47 @@
+{
+  "name": "linuxdo-browse",
+  "private": true,
+  "version": "0.0.1-alpha.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint ."
+  },
+  "peerDependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "dependencies": {
+    "dayjs": "1.11.12",
+    "lodash": "4.17.21"
+  },
+  "devDependencies": {
+    "@types/lodash": "4.17.7",
+    "@types/node": "22.1.0",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "@vitejs/plugin-react": "4.3.1",
+    "eslint": "8.57.0",
+    "eslint-config-airbnb": "19.0.4",
+    "eslint-config-airbnb-typescript": "18.0.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-import-resolver-typescript": "3.6.1",
+    "eslint-plugin-import": "2.29.1",
+    "eslint-plugin-jsx-a11y": "6.9.0",
+    "eslint-plugin-prettier": "5.2.1",
+    "eslint-plugin-react": "7.35.0",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "eslint-plugin-simple-import-sort": "12.1.1",
+    "prettier": "3.3.3",
+    "sass": "1.77.8",
+    "type-fest": "4.23.0",
+    "typescript": "5.5.4",
+    "vite": "5.4.0",
+    "vite-plugin-monkey": "3.5.2",
+    "vite-tsconfig-paths": "4.3.2"
+  }
+}

@@ -1,0 +1,34 @@
+$browseName:               "linuxdo-browse";
+$browseContainer:          #{$browseName}-container;
+$browseButton:             #{$browseName}-toggle-button;
+
+$containerWidth:           32rem;
+
+// Chip
+$chipName:                 #{$browseName}-chip;
+$chipFontSize:             0.75rem;
+$chipThemeColor:           (
+                             "primary": ("background": #F8B3CA, "text": #CC084B),
+                             "secondary": ("background": #D7D9E1, "text": #6C757D),
+                             "info": ("background": #AECEF7, "text": #095BC6),
+                             "success": ("background": #BCE2BE, "text": #339537),
+                             "warning": ("background": #FFD59F, "text": #C87000),
+                             "error": ("background": #FCD3D0, "text": #F61200),
+                             "light": ("background": #FFFFFF, "text": #C7D3DE),
+                             "dark": ("background": #8097BF, "text": #1E2E4A),
+                           );
+
+// Dialog
+$dialogName:               #{$browseName}-dialog;
+$dialogBodyName:           #{$dialogName}-body;
+$dialogBodySwitchDuration: 150;
+
+:export {
+  browseName:               $browseName;
+  browseContainer:          $browseContainer;
+  browseButton:             $browseButton;
+  chipName:                 $chipName;
+  dialogName:               $dialogName;
+  dialogBodyName:           $dialogBodyName;
+  dialogBodySwitchDuration: $dialogBodySwitchDuration;
+}

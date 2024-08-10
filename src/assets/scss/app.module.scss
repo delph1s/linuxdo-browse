@@ -1,0 +1,97 @@
+##{$browseContainer} {
+  position:      fixed;
+  bottom:        3rem;
+  right:         1rem;
+  width:         $containerWidth;
+  border-radius: 0.5rem;
+  display:       block;
+  z-index:       1000;
+  opacity:       0;
+  visibility:    hidden;
+  transition:    all 0.3s ease-in-out;
+}
+
+##{$browseContainer}.open {
+  bottom:     4rem;
+  opacity:    1;
+  visibility: visible;
+}
+
+##{$browseButton} {
+  z-index:  1001;
+  position: fixed;
+  bottom:   1rem;
+  right:    1rem;
+}
+
+.#{$chipName} {
+  font-size:     $chipFontSize;
+  line-height:   1rem;
+  padding:       .25rem .5rem;
+  border-radius: .25rem;
+
+  @each $name, $color in $chipThemeColor {
+    &.#{$chipName}-#{$name} {
+      background-color: map-get($color, "background");
+      color:            map-get($color, "text");
+    }
+  }
+}
+
+.#{$dialogBodyName} {
+  transition: opacity #{$dialogBodySwitchDuration}ms ease, transform #{$dialogBodySwitchDuration}ms ease;
+  transform:  translateX(30%);
+  display:    none;
+  opacity:    0;
+
+  &.active {
+    transform: translateX(0);
+    display:   block;
+    opacity:   1;
+  }
+
+  &.animating {
+    transform: translateX(-30%);
+    display:   block;
+    opacity:   0;
+  }
+}
+
+#settings-container {
+  border: solid 1px var(--primary-low);
+
+  h4 {
+    background-color: var(--primary-very-low);
+    padding:          .5rem 1rem;
+  }
+
+  ul {
+    list-style: none;
+    margin:     0;
+
+    li {
+      align-items:     center;
+      display:         flex;
+      flex-wrap:       nowrap;
+      flex-direction:  row-reverse;
+      justify-content: space-between;
+      border-bottom:   1px solid var(--primary-low);
+      padding:         .25rem 1rem;
+    }
+
+    span {
+      border-radius: 3px;
+      display:       inline-flex;
+      margin:        0 6px;
+      padding:       2px 1px 4px;
+    }
+
+    span:first-child {
+      margin-right: 0;
+    }
+
+    span:last-child {
+      margin-left: auto;
+    }
+  }
+}
