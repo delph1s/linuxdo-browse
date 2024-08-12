@@ -3,6 +3,9 @@ export type globalScssType = {
   browseContainer: string;
   browseButton: string;
   chipName: string;
+  dialogName: string;
+  dialogBodyName: string;
+  dialogBodySwitchDuration: number;
 };
 export const styles: globalScssType;
 export default styles;

@@ -1,5 +1,6 @@
 import styles from '@assets/scss/vars.module.scss';
 import Chip from '@components/dataDisplay/chip/Chip';
+import FuncIconButton from '@components/inputs/button/FuncIconButton';
 import IconButton from '@components/inputs/button/IconButton';
 import { useSettingsContext } from '@hooks/useSettingsContext';
 import { getCsrfToken } from '@server/core';
@@ -24,6 +25,14 @@ type LogItemType = {
   message: string;
 };
 
+type ContentType = 'settings' | 'console';
+
+type TopicData = {
+  id: number;
+  highest_post_number: number;
+  last_read_post_number?: number;
+};
+
 function App() {
   const settings = useSettingsContext();
   const statusLevelMapping: Record<TaskItemType['status'], LogItemType['level']> = {
@@ -40,6 +49,9 @@ function App() {
 
   const logContainerRef = useRef(null);
   const logContainerEndRef = useRef(null);
+
+  // csrf token store
+  const csrfTokenRef = useRef<string>('');
 
   // Queue & Log Dialog open state
   const [taskQueue, setTaskQueue] = useState<TaskItemType[]>([]);
@@ -58,12 +70,44 @@ function App() {
   // Enable Assistant
   const [enableBrowseAssist, setEnableBrowseAssist] = useState<boolean>(false);
   const [shouldLogContainerAutoScroll, setShouldLogContainerAutoScroll] = useState<boolean>(true);
+  // Switch Content
+  const [activeContent, setActiveContent] = useState<ContentType>('console');
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
 
   /**
    * 打开关闭框
    */
   const toggleDialogOpen = () => {
     setIsDialogOpen(prevState => !prevState);
+  };
+
+  /**
+   * 切换 dialog 内容
+   *
+   * @param t
+   */
+  const switchContent = (t: ContentType) => {
+    if (t !== activeContent && !isAnimating) {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setActiveContent(t);
+        setTimeout(() => {
+          setIsAnimating(false);
+        }, styles.dialogBodySwitchDuration); // 第二个页面出现的延迟
+      }, styles.dialogBodySwitchDuration); // 等待第一个页面消失
+    }
+  };
+
+  const switchContentCSS = (t: ContentType) => {
+    if (activeContent === t) {
+      if (isAnimating) {
+        return 'animating';
+      }
+
+      return 'active';
+    }
+
+    return '';
   };
 
   /**
@@ -117,26 +161,6 @@ function App() {
       scrollLogContainerToBottom();
     }
   }, [logs, scrollLogContainerToBottom, shouldLogContainerAutoScroll]);
-
-  // useEffect(() => {
-  //   const init = async () => {
-  //     const now = dayjs();
-  //
-  //     for (let i = 0; i < 200; i += 1) {
-  //       // eslint-disable-next-line no-await-in-loop
-  //       await randSleep();
-  //       const diff = dayjs().diff(now);
-  //       console.log(`${dayjs().format('YYYY-MM-DD HH:mm:ss')} - ${formatDuration(diff)}`);
-  //
-  //       // APP_CONFIG.uiWidth = `${randInt(28, 32)}rem`;
-  //
-  //       const levels: LogItemType['level'][] = ['info', 'success', 'warning', 'error'];
-  //       addLog(levels[randInt(0, 3)], '哈哈哈测试');
-  //     }
-  //   };
-  //
-  //   init();
-  // }, [addLog]);
 
   const changeTaskStatus = (
     currentTask: TaskItemType,
@@ -311,7 +335,12 @@ function App() {
   };
 
   const addInitTask = async () => {
-    const csrfToken = (await getCsrfToken()) || '';
+    let csrfToken;
+    if (csrfTokenRef.current) {
+      csrfToken = csrfTokenRef.current;
+    } else {
+      csrfToken = await getCsrfToken(settings.getCsrfTokenFromHtml);
+    }
     const windowPeriodTopicSelected = settings.windowPeriodTopics[randInt(0, settings.windowPeriodTopics.length - 1)];
     const [windowPeriodTopicId, windowPeriodTopicNums] = windowPeriodTopicSelected;
     const postNums = Array.from({ length: windowPeriodTopicNums }, (v, k) => k + 1);
@@ -324,16 +353,22 @@ function App() {
     });
   };
 
-  type TopicData = {
-    id: number;
-    highest_post_number: number;
-    last_read_post_number?: number;
-  };
-
+  /**
+   * 阅读 topic
+   *
+   * @param topicData
+   */
   const readTopic = async (topicData: TopicData) => {
-    const csrfToken = (await getCsrfToken()) || '';
+    let csrfToken;
+    if (csrfTokenRef.current) {
+      csrfToken = csrfTokenRef.current;
+    } else {
+      csrfToken = await getCsrfToken(settings.getCsrfTokenFromHtml);
+    }
     const highestPostNumber = topicData.highest_post_number;
     let lastReadPostNumber;
+    // TODO: 需要修复修改后不生效的 bug
+    console.log(settings.readAllPostsInTopic);
     if (settings.readAllPostsInTopic) {
       lastReadPostNumber = 1;
     } else {
@@ -352,10 +387,15 @@ function App() {
     });
   };
 
-  const handleProcessTopic = async (request: XMLHttpRequest) => {
+  /**
+   * 拦截 topic url 逻辑
+   *
+   * @param request XMLHttpRequest 对象
+   */
+  const handleProcessTopic = (request: XMLHttpRequest) => {
     try {
       const topicData = JSON.parse(request.response);
-      await readTopic(topicData);
+      readTopic(topicData);
     } catch (err) {
       console.error(err);
       addLog('error', '未知错误，请查看控制台！');
@@ -417,11 +457,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const start = async () => {
+    const start = () => {
       enableXMLHttpRequestHooks();
       addLog('success', '助手已开启');
       addLog('success', '未读拦截已开启');
-      await addInitTask();
+      addInitTask();
     };
 
     const stop = () => {
@@ -449,6 +489,7 @@ function App() {
         processQueue();
       }
     };
+
     const readingInfinite = async () => {
       await randSleep(10000, 15000);
       // TODO: 无法判断0
@@ -484,107 +525,136 @@ function App() {
           <h3 id="discourse-modal-title" className="d-modal__title-text" style={{ flex: 1 }}>
             Task Queue & Logs
           </h3>
-          <button
-            type="button"
+          <FuncIconButton
             title={`${enableBrowseAssist ? '停止' : '开始'}`}
             aria-label={`${enableBrowseAssist ? '停止' : '开始'}`}
-            className="btn btn-icon btn-flat no-text"
             onClick={() => setEnableBrowseAssist(prevState => !prevState)}
             style={{ flex: 0 }}
-          >
-            <svg className="fa d-icon d-icon-times svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
-              <use href={`#${enableBrowseAssist ? 'stop-circle' : 'play'}`} />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title="关闭"
-            aria-label="关闭"
-            className="btn btn-icon btn-flat no-text"
-            onClick={toggleDialogOpen}
+            icon={enableBrowseAssist ? 'stop-circle' : 'play'}
+          />
+          <FuncIconButton
+            title="设置"
+            aria-label="设置"
+            onClick={() => switchContent('settings')}
             style={{ flex: 0 }}
-          >
-            <svg className="fa d-icon d-icon-times svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
-              <use href="#cog" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title="关闭"
-            aria-label="关闭"
-            className="btn btn-icon btn-flat no-text"
-            onClick={toggleDialogOpen}
+            icon="cog"
+          />
+          <FuncIconButton
+            title="控制台"
+            aria-label="控制台"
+            onClick={() => switchContent('console')}
             style={{ flex: 0 }}
-          >
-            <svg className="fa d-icon d-icon-times svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
-              <use href="#times" />
-            </svg>
-          </button>
+            icon="code"
+          />
+          <FuncIconButton title="关闭" aria-label="关闭" onClick={toggleDialogOpen} style={{ flex: 0 }} icon="times" />
         </div>
         <div className="d-modal__body" style={{ padding: '0.5rem' }}>
-          <section id="task-queue-container" style={{ display: 'inline-block', marginBottom: '1rem', width: '100%' }}>
-            <h4>Queue</h4>
-            <ul style={{ overflowX: 'auto', height: settings.uiQueueHeight }}>
-              <li
-                style={{
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  display: 'flex',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                <Chip label={`总任务数：${statsData.totalSuccess + statsData.totalFailed}`} color="primary" />
-                <Chip label={`队列数：${taskQueue.length}`} color="info" />
-                <Chip label={`成功数：${statsData.totalSuccess}`} color="success" />
-                <Chip label={`失败数：${statsData.totalFailed}`} color="error" />
-                <Chip
-                  label={`阅读时间：${formatDurationShort(statsData.totalReadingTime)}`}
-                  color="warning"
-                  title={`格式时间：${formatDuration(statsData.totalReadingTime)}`}
+          <div className={`${styles.dialogBodyName} ${switchContentCSS('console')}`}>
+            <section id="task-queue-container" style={{ display: 'inline-block', marginBottom: '1rem', width: '100%' }}>
+              <h4>Queue</h4>
+              <ul style={{ overflowX: 'auto', height: settings.uiQueueHeight }}>
+                <li
+                  style={{
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    display: 'flex',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  <Chip label={`总任务数：${statsData.totalSuccess + statsData.totalFailed}`} color="primary" />
+                  <Chip label={`队列数：${taskQueue.length}`} color="info" />
+                  <Chip label={`成功数：${statsData.totalSuccess}`} color="success" />
+                  <Chip label={`失败数：${statsData.totalFailed}`} color="error" />
+                  <Chip
+                    label={`阅读时间：${formatDurationShort(statsData.totalReadingTime)}`}
+                    color="warning"
+                    title={`格式时间：${formatDuration(statsData.totalReadingTime)}`}
+                  />
+                </li>
+                {taskQueue.map((task, i) => {
+                  return (
+                    <li
+                      style={{
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        display: 'flex',
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: settings.uiQueueFontSize }}
+                      >{`[${task.actionType}] ${task.topicId}`}</span>
+                      <Chip label={task.status} color={statusLevelMapping[task.status]} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+            <section id="log-container" style={{ display: 'inline-block', marginBottom: 0, width: '100%' }}>
+              <div style={{ display: 'flex' }}>
+                <h4 style={{ flex: 1 }}>Logs</h4>
+                <FuncIconButton
+                  title="清除日志"
+                  aria-label="清除日志"
+                  onClick={clearLogs}
+                  style={{ flex: 0 }}
+                  icon="far-trash-alt"
                 />
-              </li>
-              {taskQueue.map((task, i) => {
-                return (
-                  <li
-                    style={{
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      display: 'flex',
-                      marginBottom: '0.5rem',
-                    }}
-                  >
-                    <span style={{ fontSize: settings.uiQueueFontSize }}>{`[${task.actionType}] ${task.topicId}`}</span>
-                    <Chip label={task.status} color={statusLevelMapping[task.status]} />
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-          <section id="log-container" style={{ display: 'inline-block', marginBottom: 0, width: '100%' }}>
-            <h4>Logs</h4>
-            <ul
-              ref={logContainerRef}
-              onScroll={handleLogContainerScroll}
-              style={{ overflowX: 'auto', height: settings.uiLogHeight }}
-            >
-              {logs.map((log, i) => {
-                return (
-                  <li
-                    style={{
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      display: 'flex',
-                      marginBottom: '0.5rem',
-                    }}
-                  >
-                    <span style={{ fontSize: settings.uiLogFontSize }}>{`${log.time} - ${log.message}`}</span>
-                    <Chip label={log.level} color={log.level} />
-                  </li>
-                );
-              })}
-              <div ref={logContainerEndRef} />
-            </ul>
-          </section>
+              </div>
+              <ul
+                ref={logContainerRef}
+                onScroll={handleLogContainerScroll}
+                style={{ overflowX: 'auto', height: settings.uiLogHeight }}
+              >
+                {logs.map((log, i) => {
+                  return (
+                    <li
+                      style={{
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        display: 'flex',
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      <span style={{ fontSize: settings.uiLogFontSize }}>{`${log.time} - ${log.message}`}</span>
+                      <Chip label={log.level} color={log.level} />
+                    </li>
+                  );
+                })}
+                <div ref={logContainerEndRef} />
+              </ul>
+            </section>
+          </div>
+          <div className={`${styles.dialogBodyName} ${switchContentCSS('settings')}`}>
+            <section id="settings-container" style={{ display: 'inline-block', marginBottom: 0, width: '100%' }}>
+              <div style={{ display: 'flex' }}>
+                <h4 style={{ flex: 1 }}>Settings</h4>
+                <FuncIconButton
+                  title="重置"
+                  aria-label="重置"
+                  onClick={settings.onReset}
+                  style={{ flex: 0, background: 'var(--primary-very-low)', marginBottom: '0.5rem' }}
+                  icon="history"
+                  disabled={!settings.canReset}
+                />
+              </div>
+              <ul style={{ overflowX: 'auto', height: '500px' }}>
+                <li>
+                  <span>
+                    <input
+                      type="checkbox"
+                      onChange={event => {
+                        console.log(event.target.checked);
+                        settings.onUpdateField('readAllPostsInTopic', event.target.checked);
+                      }}
+                      checked={settings.readAllPostsInTopic}
+                    />
+                  </span>
+                  阅读主题所有回复
+                </li>
+              </ul>
+            </section>
+          </div>
         </div>
       </div>
     </div>

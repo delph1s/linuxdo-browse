@@ -1,10 +1,6 @@
+import { IconNameType } from '@components/dataDisplay/icons/NativeIcon/types';
 import React, { ButtonHTMLAttributes, ReactNode, useMemo } from 'react';
 import { Merge } from 'type-fest';
-
-export type IconNameType = |
-  'play' |
-  'stop-circle' |
-  'far-trash-alt';
 
 type IconButtonProps<T = any> = Merge<ButtonHTMLAttributes<T>, {
   changeMe?: 'changeMe';
