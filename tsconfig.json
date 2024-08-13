@@ -45,6 +45,9 @@
       "@lib/*": [
         "./src/lib/*"
       ],
+      "@sections/*": [
+        "./src/sections/*"
+      ],
       "@server/*": [
         "./src/server/*"
       ],

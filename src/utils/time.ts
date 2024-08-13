@@ -3,6 +3,11 @@ import duration from 'dayjs/plugin/duration';
 
 dayjs.extend(duration);
 
+/**
+ * 转可读时间
+ *
+ * @param t 时长（单位：ms）
+ */
 export const formatDuration = (t: number) => {
   const diff = dayjs.duration(t);
 
@@ -25,6 +30,11 @@ export const formatDuration = (t: number) => {
   return result.join('');
 };
 
+/**
+ * 转短可读时间
+ *
+ * @param t 时长（单位：ms）
+ */
 export const formatDurationShort = (t: number) => {
   const diff = dayjs.duration(t);
 

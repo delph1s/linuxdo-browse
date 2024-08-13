@@ -16,7 +16,6 @@ export type SettingsState = {
   uiTagFontSize: number | string, // ui 标签字体大小
   uiQueueFontSize: number | string, // ui 队列字体大小
   uiLogFontSize: number | string, // ui 日志字体大小
-  globalCsrfToken?: string, // 存储 csrf token
 };
 
 export type SettingsCaches = 'localStorage';

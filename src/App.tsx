@@ -1,29 +1,16 @@
 import styles from '@assets/scss/vars.module.scss';
-import Chip from '@components/dataDisplay/chip/Chip';
 import FuncIconButton from '@components/inputs/button/FuncIconButton';
 import IconButton from '@components/inputs/button/IconButton';
 import { useSettingsContext } from '@hooks/useSettingsContext';
+import ConsoleSection from '@sections/ConsoleSection';
+import { LogItemType, TaskItemType } from '@sections/ConsoleSection/types';
+import SettingsSection from '@sections/SettingsSection';
 import { getCsrfToken } from '@server/core';
 import { ensureNativeMethods, isTopicUrl, randInt, randSleep } from '@utils/core';
-import { dayjs, formatDuration, formatDurationShort } from '@utils/time';
+import { dayjs } from '@utils/time';
 import nativeDayjs from 'dayjs';
 import _ from 'lodash';
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-
-type TaskItemType = {
-  topicId: number;
-  postNums: number[];
-  csrfToken: string;
-  maxReadPosts: number;
-  actionType: '主动出击' | '无限月读';
-  status: 'pending' | 'processing' | 'completed' | 'retrying' | 'failed';
-};
-
-type LogItemType = {
-  time: string;
-  level: 'info' | 'success' | 'warning' | 'error';
-  message: string;
-};
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 type ContentType = 'settings' | 'console';
 
@@ -35,13 +22,6 @@ type TopicData = {
 
 function App() {
   const settings = useSettingsContext();
-  const statusLevelMapping: Record<TaskItemType['status'], LogItemType['level']> = {
-    pending: 'warning',
-    processing: 'info',
-    completed: 'success',
-    retrying: 'error',
-    failed: 'error',
-  };
 
   // XMLHttpRequest 拦截
   const nativeXMLHttpRequestOpen = useRef(XMLHttpRequest.prototype.open);
@@ -133,34 +113,6 @@ function App() {
     setLogs([]);
     addLog('info', '日志已清除');
   };
-
-  /**
-   * 判断是否需要滑动日志容器
-   */
-  const handleLogContainerScroll = () => {
-    if (logContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
-      const isScrolledToBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 1;
-      setShouldLogContainerAutoScroll(isScrolledToBottom);
-    }
-  };
-
-  /**
-   * 日志容器滑动到最底下
-   */
-  const scrollLogContainerToBottom = useCallback(() => {
-    if (logContainerEndRef.current) {
-      requestAnimationFrame(() => {
-        (logContainerEndRef.current as unknown as HTMLElement).scrollIntoView({ behavior: 'smooth' });
-      });
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    if (shouldLogContainerAutoScroll) {
-      scrollLogContainerToBottom();
-    }
-  }, [logs, scrollLogContainerToBottom, shouldLogContainerAutoScroll]);
 
   const changeTaskStatus = (
     currentTask: TaskItemType,
@@ -550,110 +502,10 @@ function App() {
         </div>
         <div className="d-modal__body" style={{ padding: '0.5rem' }}>
           <div className={`${styles.dialogBodyName} ${switchContentCSS('console')}`}>
-            <section id="task-queue-container" style={{ display: 'inline-block', marginBottom: '1rem', width: '100%' }}>
-              <h4>Queue</h4>
-              <ul style={{ overflowX: 'auto', height: settings.uiQueueHeight }}>
-                <li
-                  style={{
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    display: 'flex',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  <Chip label={`总任务数：${statsData.totalSuccess + statsData.totalFailed}`} color="primary" />
-                  <Chip label={`队列数：${taskQueue.length}`} color="info" />
-                  <Chip label={`成功数：${statsData.totalSuccess}`} color="success" />
-                  <Chip label={`失败数：${statsData.totalFailed}`} color="error" />
-                  <Chip
-                    label={`阅读时间：${formatDurationShort(statsData.totalReadingTime)}`}
-                    color="warning"
-                    title={`格式时间：${formatDuration(statsData.totalReadingTime)}`}
-                  />
-                </li>
-                {taskQueue.map((task, i) => {
-                  return (
-                    <li
-                      style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        display: 'flex',
-                        marginBottom: '0.5rem',
-                      }}
-                    >
-                      <span
-                        style={{ fontSize: settings.uiQueueFontSize }}
-                      >{`[${task.actionType}] ${task.topicId}`}</span>
-                      <Chip label={task.status} color={statusLevelMapping[task.status]} />
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-            <section id="log-container" style={{ display: 'inline-block', marginBottom: 0, width: '100%' }}>
-              <div style={{ display: 'flex' }}>
-                <h4 style={{ flex: 1 }}>Logs</h4>
-                <FuncIconButton
-                  title="清除日志"
-                  aria-label="清除日志"
-                  onClick={clearLogs}
-                  style={{ flex: 0 }}
-                  icon="far-trash-alt"
-                />
-              </div>
-              <ul
-                ref={logContainerRef}
-                onScroll={handleLogContainerScroll}
-                style={{ overflowX: 'auto', height: settings.uiLogHeight }}
-              >
-                {logs.map((log, i) => {
-                  return (
-                    <li
-                      style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        display: 'flex',
-                        marginBottom: '0.5rem',
-                      }}
-                    >
-                      <span style={{ fontSize: settings.uiLogFontSize }}>{`${log.time} - ${log.message}`}</span>
-                      <Chip label={log.level} color={log.level} />
-                    </li>
-                  );
-                })}
-                <div ref={logContainerEndRef} />
-              </ul>
-            </section>
+            <ConsoleSection taskQueue={taskQueue} logs={logs} statsData={statsData} onClearLogs={clearLogs} />
           </div>
           <div className={`${styles.dialogBodyName} ${switchContentCSS('settings')}`}>
-            <section id="settings-container" style={{ display: 'inline-block', marginBottom: 0, width: '100%' }}>
-              <div style={{ display: 'flex' }}>
-                <h4 style={{ flex: 1 }}>Settings</h4>
-                <FuncIconButton
-                  title="重置"
-                  aria-label="重置"
-                  onClick={settings.onReset}
-                  style={{ flex: 0, background: 'var(--primary-very-low)', marginBottom: '0.5rem' }}
-                  icon="history"
-                  disabled={!settings.canReset}
-                />
-              </div>
-              <ul style={{ overflowX: 'auto', height: '500px' }}>
-                <li>
-                  <span>
-                    <input
-                      type="checkbox"
-                      onChange={event => {
-                        console.log(event.target.checked);
-                        settings.onUpdateField('readAllPostsInTopic', event.target.checked);
-                      }}
-                      checked={settings.readAllPostsInTopic}
-                    />
-                  </span>
-                  阅读主题所有回复
-                </li>
-              </ul>
-            </section>
+            <SettingsSection />
           </div>
         </div>
       </div>
