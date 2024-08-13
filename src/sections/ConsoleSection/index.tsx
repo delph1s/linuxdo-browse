@@ -1,9 +1,9 @@
 import Chip from '@components/dataDisplay/chip/Chip';
 import FuncIconButton from '@components/inputs/button/FuncIconButton';
-import { useSettingsContext } from '@hooks/useSettingsContext';
-import { LogItemType, StatsDataType, StatusLevelMappingType, TaskItemType } from '@sections/ConsoleSection/types';
-import { formatDuration, formatDurationShort } from '@utils/time';
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import {useSettingsContext} from '@hooks/useSettingsContext';
+import {LogItemType, StatsDataType, StatusLevelMappingType, TaskItemType} from '@sections/ConsoleSection/types';
+import {formatDuration, formatDurationShort} from '@utils/time';
+import React, {useCallback, useLayoutEffect, useRef, useState} from 'react';
 
 type ConsoleSectionProps = {
   taskQueue: TaskItemType[];
@@ -20,7 +20,7 @@ const statusLevelMapping: StatusLevelMappingType = {
   failed: 'error',
 };
 
-function ConsoleSection({ taskQueue, logs, statsData, onClearLogs, ...restProps }: ConsoleSectionProps) {
+function ConsoleSection({taskQueue, logs, statsData, onClearLogs, ...restProps}: ConsoleSectionProps) {
   const settings = useSettingsContext();
 
   const logContainerRef = useRef(null);
@@ -33,7 +33,7 @@ function ConsoleSection({ taskQueue, logs, statsData, onClearLogs, ...restProps 
    */
   const handleLogContainerScroll = () => {
     if (logContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
+      const {scrollTop, scrollHeight, clientHeight} = logContainerRef.current;
       const isScrolledToBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 1;
       setShouldLogContainerAutoScroll(isScrolledToBottom);
     }
@@ -45,7 +45,7 @@ function ConsoleSection({ taskQueue, logs, statsData, onClearLogs, ...restProps 
   const scrollLogContainerToBottom = useCallback(() => {
     if (logContainerEndRef.current) {
       requestAnimationFrame(() => {
-        (logContainerEndRef.current as unknown as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+        (logContainerEndRef.current as unknown as HTMLElement).scrollIntoView({behavior: 'smooth'});
       });
     }
   }, []);
@@ -58,9 +58,9 @@ function ConsoleSection({ taskQueue, logs, statsData, onClearLogs, ...restProps 
 
   return (
     <>
-      <section id="task-queue-container" style={{ display: 'inline-block', marginBottom: '1rem', width: '100%' }}>
+      <section id="task-queue-container" style={{display: 'inline-block', marginBottom: '1rem', width: '100%'}}>
         <h4>Queue</h4>
-        <ul style={{ overflowX: 'auto', height: settings.uiQueueHeight }}>
+        <ul style={{overflowX: 'auto', height: settings.uiQueueHeight}}>
           <li
             style={{
               justifyContent: 'space-between',
@@ -69,65 +69,63 @@ function ConsoleSection({ taskQueue, logs, statsData, onClearLogs, ...restProps 
               marginBottom: '0.5rem',
             }}
           >
-            <Chip label={`总任务数：${statsData.totalSuccess + statsData.totalFailed}`} color="primary" />
-            <Chip label={`队列数：${taskQueue.length}`} color="info" />
-            <Chip label={`成功数：${statsData.totalSuccess}`} color="success" />
-            <Chip label={`失败数：${statsData.totalFailed}`} color="error" />
+            <Chip label={`总任务数：${statsData.totalSuccess + statsData.totalFailed}`} color="primary"/>
+            <Chip label={`队列数：${taskQueue.length}`} color="info"/>
+            <Chip label={`成功数：${statsData.totalSuccess}`} color="success"/>
+            <Chip label={`失败数：${statsData.totalFailed}`} color="error"/>
             <Chip
               label={`阅读时间：${formatDurationShort(statsData.totalReadingTime)}`}
               color="warning"
               title={`格式时间：${formatDuration(statsData.totalReadingTime)}`}
             />
           </li>
-          {taskQueue.map((task, i) => {
-            return (
-              <li
-                style={{
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  display: 'flex',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                <span style={{ fontSize: settings.uiQueueFontSize }}>{`[${task.actionType}] ${task.topicId}`}</span>
-                <Chip label={task.status} color={statusLevelMapping[task.status]} />
-              </li>
-            );
-          })}
+          {taskQueue.map((task, i) => (
+            <li
+              key={task.topicId}
+              style={{
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                display: 'flex',
+                marginBottom: '0.5rem',
+              }}
+            >
+              <span style={{fontSize: settings.uiQueueFontSize}}>{`[${task.actionType}] ${task.topicId}`}</span>
+              <Chip label={task.status} color={statusLevelMapping[task.status]}/>
+            </li>
+          ))}
         </ul>
       </section>
-      <section id="log-container" style={{ display: 'inline-block', marginBottom: 0, width: '100%' }}>
-        <div style={{ display: 'flex' }}>
-          <h4 style={{ flex: 1 }}>Logs</h4>
+      <section id="log-container" style={{display: 'inline-block', marginBottom: 0, width: '100%'}}>
+        <div style={{display: 'flex'}}>
+          <h4 style={{flex: 1}}>Logs</h4>
           <FuncIconButton
             title="清除日志"
             aria-label="清除日志"
             onClick={onClearLogs}
-            style={{ flex: 0 }}
+            style={{flex: 0}}
             icon="far-trash-alt"
           />
         </div>
         <ul
           ref={logContainerRef}
           onScroll={handleLogContainerScroll}
-          style={{ overflowX: 'auto', height: settings.uiLogHeight }}
+          style={{overflowX: 'auto', height: settings.uiLogHeight}}
         >
-          {logs.map((log, i) => {
-            return (
-              <li
-                style={{
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  display: 'flex',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                <span style={{ fontSize: settings.uiLogFontSize }}>{`${log.time} - ${log.message}`}</span>
-                <Chip label={log.level} color={log.level} />
-              </li>
-            );
-          })}
-          <div ref={logContainerEndRef} />
+          {logs.map((log, i) => (
+            <li
+              key={`${log.time}-${i}`}
+              style={{
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                display: 'flex',
+                marginBottom: '0.5rem',
+              }}
+            >
+              <span style={{fontSize: settings.uiLogFontSize}}>{`${log.time} - ${log.message}`}</span>
+              <Chip label={log.level} color={log.level}/>
+            </li>
+          ))}
+          <div ref={logContainerEndRef}/>
         </ul>
       </section>
     </>
