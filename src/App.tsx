@@ -477,14 +477,14 @@ function App() {
             aria-label={`${enableBrowseAssist ? '停止' : '开始'}`}
             onClick={() => setEnableBrowseAssist(prevState => !prevState)}
             style={{ flex: 0 }}
-            icon={enableBrowseAssist ? 'stop-circle' : 'play'}
+            icon={enableBrowseAssist ? 'circle-stop' : 'play'}
           />
           <FuncIconButton
             title="设置"
             aria-label="设置"
             onClick={() => switchContent('settings')}
             style={{ flex: 0 }}
-            icon="cog"
+            icon="gear"
           />
           <FuncIconButton
             title="控制台"
@@ -493,7 +493,7 @@ function App() {
             style={{ flex: 0 }}
             icon="code"
           />
-          <FuncIconButton title="关闭" aria-label="关闭" onClick={settings.onCloseDialog} style={{ flex: 0 }} icon="times" />
+          <FuncIconButton title="关闭" aria-label="关闭" onClick={settings.onCloseDialog} style={{ flex: 0 }} icon="xmark" />
         </div>
         <div className="d-modal__body" style={{ padding: '0.5rem' }}>
           <div className={`${styles.dialogBodyName} ${switchContentCSS('console')}`}>

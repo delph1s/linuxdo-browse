@@ -1,7 +1,7 @@
 {
   "name": "linuxdo-browse",
   "private": true,
-  "version": "0.0.1-alpha.2",
+  "version": "0.0.1-alpha.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,11 +14,11 @@
     "react-dom": "18.3.1"
   },
   "dependencies": {
-    "dayjs": "1.11.12",
+    "dayjs": "1.11.13",
     "lodash": "4.17.21"
   },
   "devDependencies": {
-    "@types/lodash": "4.17.7",
+    "@types/lodash": "4.17.13",
     "@types/node": "22.1.0",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
@@ -29,19 +29,19 @@
     "eslint-config-airbnb": "19.0.4",
     "eslint-config-airbnb-typescript": "18.0.0",
     "eslint-config-prettier": "9.1.0",
-    "eslint-import-resolver-typescript": "3.6.1",
-    "eslint-plugin-import": "2.29.1",
-    "eslint-plugin-jsx-a11y": "6.9.0",
+    "eslint-import-resolver-typescript": "3.7.0",
+    "eslint-plugin-import": "2.31.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-prettier": "5.2.1",
-    "eslint-plugin-react": "7.35.0",
+    "eslint-plugin-react": "7.37.2",
     "eslint-plugin-react-hooks": "4.6.2",
     "eslint-plugin-simple-import-sort": "12.1.1",
-    "prettier": "3.3.3",
-    "sass": "1.77.8",
-    "type-fest": "4.23.0",
-    "typescript": "5.5.4",
-    "vite": "5.4.0",
-    "vite-plugin-monkey": "3.5.2",
-    "vite-tsconfig-paths": "4.3.2"
+    "prettier": "3.4.2",
+    "sass": "1.83.0",
+    "type-fest": "4.30.2",
+    "typescript": "5.7.2",
+    "vite": "5.4.11",
+    "vite-plugin-monkey": "5.0.0",
+    "vite-tsconfig-paths": "5.1.4"
   }
 }
