@@ -6,19 +6,14 @@ import ConsoleSection from '@sections/ConsoleSection';
 import type { LogItemType, StatsDataType, TaskItemType } from '@sections/ConsoleSection/types';
 import SettingsSection from '@sections/SettingsSection';
 import { getCsrfToken } from '@server/core';
-import { ensureNativeMethods, genRandId, isTopicUrl, randInt, randSleep } from '@utils/core';
+import { getUnseenTopics, TopicData } from '@server/topic';
+import { ensureNativeMethods, genRandId, isTimingsUrl, isTopicUrl, randInt, randSleep } from '@utils/core';
 import { dayjs } from '@utils/time';
 import nativeDayjs from 'dayjs';
 import _ from 'lodash';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 type ContentType = 'settings' | 'console';
-
-type TopicData = {
-  id: number;
-  highest_post_number: number;
-  last_read_post_number?: number;
-};
 
 function App() {
   const settings = useSettingsContext();
@@ -29,6 +24,7 @@ function App() {
 
   // csrf token store
   const csrfTokenRef = useRef<string>('');
+  const processingRef = useRef<boolean>(false);
 
   // Queue & Log Dialog open state
   const [taskQueue, setTaskQueue] = useState<TaskItemType[]>([]);
@@ -84,23 +80,28 @@ function App() {
    * @param level
    * @param message
    */
-  const addLog = (level: LogItemType['level'], message: LogItemType['message']) => {
-    setLogs(prevState => {
-      let nextState = prevState;
-      if (nextState.length >= settings.maxLogLineNum) {
-        nextState = nextState.slice(1);
-      }
-      return [...nextState, { logId: genRandId(),time: dayjs().format('YYYY-MM-DD HH:mm:ss'), level, message }];
-    });
-  };
+  const addLog = useCallback(
+    (level: LogItemType['level'], message: LogItemType['message']) => {
+      setLogs(prevState => {
+        let nextState;
+        if (prevState.length >= settings.maxLogLineNum) {
+          nextState = prevState.slice(1);
+        } else {
+          nextState = prevState;
+        }
+        return [...nextState, { logId: genRandId(), time: dayjs().format('YYYY-MM-DD HH:mm:ss'), level, message }];
+      });
+    },
+    [settings.maxLogLineNum],
+  );
 
   /**
    * 清理日志
    */
-  const clearLogs = () => {
+  const clearLogs = useCallback(() => {
     setLogs([]);
     addLog('info', '日志已清除');
-  };
+  }, [addLog]);
 
   const changeTaskStatus = (
     currentTask: TaskItemType,
@@ -108,7 +109,7 @@ function App() {
     newStatus: TaskItemType['status'],
   ) => {
     const nextState = prevState;
-    const currentItemIndex = nextState.findIndex(value => {
+    const currentItemIndex = prevState.findIndex(value => {
       return currentTask.topicId === value.topicId;
     });
     if (currentItemIndex !== -1) {
@@ -117,81 +118,108 @@ function App() {
     return nextState;
   };
 
-  const handleReadingPosts = async (task: TaskItemType) => {
-    const { topicId, postNums, csrfToken, maxReadPosts, actionType, status } = task;
-
-    let retryTimes = 0;
-    let newPostNums = postNums;
-    while (newPostNums.length > 0 && retryTimes <= settings.maxRetryTimes) {
-      let processPostNums = newPostNums.slice(0, maxReadPosts);
-      processPostNums = processPostNums[0] === 0 ? processPostNums.slice(1) : processPostNums;
-
-      const randTime = randInt(60000, 61000);
-      const processPostNumsStr = processPostNums.map(num => `timings%5B${num}%5D=${randTime}`);
-      const resultStr = [...processPostNumsStr, `topic_time=${randTime}`, `topic_id=${topicId}`].join('&');
-
-      // eslint-disable-next-line no-await-in-loop
-      await randSleep(2000, 3000);
-
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await fetch('https://linux.do/topics/timings', {
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'x-csrf-token': task.csrfToken,
-            'x-requested-with': 'XMLHttpRequest',
-          },
-          body: resultStr,
-          method: 'POST',
-          mode: 'cors',
-          credentials: 'include',
-        });
-
-        if (res.status === 200) {
-          addLog(
-            'success',
-            `已完成话题[${topicId}]${processPostNums[0]}至${processPostNums[processPostNums.length - 1]}层话题阅读`,
-          );
-          newPostNums = newPostNums.slice(maxReadPosts);
-          retryTimes = 0;
-          // eslint-disable-next-line no-await-in-loop
-          await randSleep(1000, 2000);
-        } else if (res.status >= 400 && res.status < 600) {
-          addLog('warning', `阅读话题[${topicId}]出现错误(${res.status})！正在重试(${retryTimes + 1})……`);
-          setTaskQueue(prevState => {
-            return changeTaskStatus(task, prevState, 'retrying');
-          });
-          retryTimes += 1;
-          // eslint-disable-next-line no-await-in-loop
-          await randSleep(3000, 5000);
-        } else {
-          throw new Error(`Unexpected status: ${res.status}`);
-        }
-      } catch (err: any) {
-        console.error(err);
-        retryTimes += 1;
-        addLog('error', `阅读话题[${topicId}]发生未知错误: ${err.message}`);
-        // eslint-disable-next-line no-await-in-loop
-        await randSleep(3000, 5000);
-      }
+  /**
+   * 分批处理帖子编号
+   */
+  const genReadingPostBatches = (postNums: number[], batchSize: number): number[][] => {
+    const batches: number[][] = [];
+    for (let i = 0; i < postNums.length; i += batchSize) {
+      batches.push(postNums.slice(i, i + batchSize));
     }
-
-    if (retryTimes > settings.maxRetryTimes) {
-      return { topicId, error: true, detail: '超过最大重试次数' };
-    }
-
-    return { topicId, error: false, detail: '已完成阅读' };
+    return batches;
   };
+
+  /**
+   * 构建请求体
+   */
+  const genReadingRequestBody = (topicId: string | number, postNums: number[]): string => {
+    const readTime = randInt(60000, 61000);
+    const postParams = postNums.filter(num => num !== 0).map(num => `timings%5B${num}%5D=${readTime}`);
+
+    return [...postParams, `topic_time=${readTime}`, `topic_id=${topicId}`].join('&');
+  };
+
+  const handleReadingPosts = useCallback(
+    async (task: TaskItemType) => {
+      const { topicId, postNums, csrfToken, maxReadPosts, actionType, status } = task;
+
+      // 分批处理帖子
+      const readingPostBatches = genReadingPostBatches(postNums, maxReadPosts);
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const readingPostBatch of readingPostBatches) {
+        let retryCount = 0;
+        let success = false;
+
+        while (!success && retryCount <= settings.maxRetryTimes) {
+          try {
+            const readingRequestBody = genReadingRequestBody(topicId, readingPostBatch);
+            // eslint-disable-next-line no-await-in-loop
+            const response = await fetch('https://linux.do/topics/timings', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'x-csrf-token': csrfToken,
+                'x-requested-with': 'XMLHttpRequest',
+              },
+              body: readingRequestBody,
+              mode: 'cors',
+              credentials: 'include',
+            });
+
+            if (response.ok) {
+              addLog(
+                'success',
+                `已完成话题[${topicId}]第${readingPostBatch[0]}至${readingPostBatch[readingPostBatch.length - 1]}层阅读`,
+              );
+              success = true;
+              retryCount = 0;
+              // eslint-disable-next-line no-await-in-loop
+              await randSleep(1000, 2000); // 成功后的冷却时间
+            } else if (response.status >= 400 && response.status < 600) {
+              retryCount += 1;
+              addLog(
+                'warning',
+                `阅读话题[${topicId}]出现错误(${response.status})！正在重试(${retryCount}/${settings.maxRetryTimes})……`,
+              );
+              setTaskQueue(prevState => {
+                return changeTaskStatus(task, prevState, 'retrying');
+              });
+              // eslint-disable-next-line no-await-in-loop
+              await randSleep(3000, 5000);
+            } else {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+          } catch (error: any) {
+            console.error(error);
+            retryCount += 1;
+            addLog('error', `阅读话题[${topicId}]发生未知错误: ${error.message}`);
+            // eslint-disable-next-line no-await-in-loop
+            await randSleep(3000, 5000);
+          }
+        }
+
+        // 如果当前批次处理失败，直接返回错误
+        if (!success) {
+          return { topicId, error: true, detail: '超过最大重试次数' };
+        }
+      }
+
+      return { topicId, error: false, detail: '已完成阅读' };
+    },
+    [addLog, settings.maxRetryTimes],
+  );
 
   /**
    * 执行队列任务
    */
-  const processQueue = async () => {
+  const processQueue = useCallback(async () => {
     if (taskQueue.length > 0) {
       const task = taskQueue[0];
       addLog('info', `正在阅读：${task.topicId}`);
 
       setTaskQueue(prevState => {
+        processingRef.current = true;
         return changeTaskStatus(task, prevState, 'processing');
       });
 
@@ -242,93 +270,120 @@ function App() {
 
       // 删除已完成任务
       setTaskQueue(prevState => {
-        const nextState = prevState;
-        nextState.shift();
+        const nextState = prevState.filter(t => t.taskId !== task.taskId);
+        processingRef.current = false;
         return nextState;
       });
     }
-  };
+  }, [addLog, handleReadingPosts, lastTaskTime, taskQueue]);
 
-  const addTask = ({ topicId, postNums, csrfToken, maxReadPosts, actionType }: Omit<TaskItemType, 'taskId' | 'status'>) => {
-    if (enableBrowseAssist) {
-      setTaskQueue(prevState => {
-        const isDuplicate = prevState.some(task => task.topicId === topicId);
+  const addTask = useCallback(
+    ({ topicId, postNums, csrfToken, maxReadPosts, actionType }: Omit<TaskItemType, 'taskId' | 'status'>) => {
+      if (enableBrowseAssist) {
+        setTaskQueue(prevState => {
+          const isDuplicate = prevState.some(task => task.topicId === topicId);
 
-        if (!isDuplicate) {
-          const nextState: TaskItemType[] = [
-            ...prevState,
-            {
-              taskId: genRandId(),
-              topicId,
-              postNums,
-              csrfToken,
-              maxReadPosts,
-              actionType,
-              status: 'pending',
-            },
-          ];
-          addLog('info', `任务已添加，目前队列长度：${nextState.length}`);
+          if (!isDuplicate) {
+            const nextState: TaskItemType[] = [
+              ...prevState,
+              {
+                taskId: genRandId(),
+                topicId,
+                postNums,
+                csrfToken,
+                maxReadPosts,
+                actionType,
+                status: 'pending',
+              },
+            ];
+            addLog('info', `任务已添加，目前队列长度：${nextState.length}`);
 
-          return nextState;
-        }
+            return nextState;
+          }
 
-        return prevState;
-      });
-    }
-  };
+          return prevState;
+        });
+      }
+    },
+    [addLog, enableBrowseAssist],
+  );
 
-  const addInitTask = async () => {
+  const addInitTask = useCallback(async () => {
     let csrfToken;
     if (csrfTokenRef.current) {
       csrfToken = csrfTokenRef.current;
     } else {
       csrfToken = await getCsrfToken(settings.getCsrfTokenFromHtml);
     }
-    const windowPeriodTopicSelected = settings.windowPeriodTopics[randInt(0, settings.windowPeriodTopics.length - 1)];
-    const [windowPeriodTopicId, windowPeriodTopicNums] = windowPeriodTopicSelected;
-    const postNums = Array.from({ length: windowPeriodTopicNums }, (v, k) => k + 1);
-    addTask({
-      topicId: windowPeriodTopicId,
-      postNums,
-      csrfToken,
-      maxReadPosts: settings.singlePostsReading,
-      actionType: '无限月读',
+    const unseenTopics = await getUnseenTopics(csrfToken);
+    unseenTopics.forEach(unseenTopic => {
+      const highestPostNumber = unseenTopic.highest_post_number;
+      let lastReadPostNumber;
+      if (settings.readAllPostsInTopic) {
+        lastReadPostNumber = 1;
+      } else {
+        lastReadPostNumber = unseenTopic.last_read_post_number || 1;
+      }
+      const postNums = Array.from(
+        { length: highestPostNumber - lastReadPostNumber + 1 },
+        (v, k) => k + lastReadPostNumber,
+      );
+      addTask({
+        topicId: unseenTopic.id,
+        postNums,
+        csrfToken,
+        maxReadPosts: settings.singlePostsReading,
+        actionType: '清理未读',
+      });
     });
-  };
+    // const windowPeriodTopicSelected = settings.windowPeriodTopics[randInt(0, settings.windowPeriodTopics.length - 1)];
+    // const [windowPeriodTopicId, windowPeriodTopicNums] = windowPeriodTopicSelected;
+    // const postNums = Array.from({ length: windowPeriodTopicNums }, (v, k) => k + 1);
+    // addTask({
+    //   topicId: windowPeriodTopicId,
+    //   postNums,
+    //   csrfToken,
+    //   maxReadPosts: settings.singlePostsReading,
+    //   actionType: '无限月读',
+    // });
+  }, [addTask, settings.getCsrfTokenFromHtml, settings.readAllPostsInTopic, settings.singlePostsReading]);
 
   /**
    * 阅读 topic
    *
    * @param topicData
    */
-  const readTopic = async (topicData: TopicData) => {
-    let csrfToken;
-    if (csrfTokenRef.current) {
-      csrfToken = csrfTokenRef.current;
-    } else {
-      csrfToken = await getCsrfToken(settings.getCsrfTokenFromHtml);
-    }
-    const highestPostNumber = topicData.highest_post_number;
-    let lastReadPostNumber;
-    // TODO: 需要修复修改后不生效的 bug
-    console.log(settings.readAllPostsInTopic);
-    if (settings.readAllPostsInTopic) {
-      lastReadPostNumber = 1;
-    } else {
-      lastReadPostNumber = topicData.last_read_post_number || 1;
-    }
-    const postNums = Array.from(
-      { length: highestPostNumber - lastReadPostNumber + 1 },
-      (v, k) => k + lastReadPostNumber,
-    );
-    addTask({
-      topicId: topicData.id,
-      postNums,
-      csrfToken,
-      maxReadPosts: settings.singlePostsReading,
-      actionType: '主动出击',
-    });
-  };
+  const readTopic = useCallback(
+    async (topicData: TopicData) => {
+      let csrfToken;
+      if (csrfTokenRef.current) {
+        csrfToken = csrfTokenRef.current;
+      } else {
+        csrfToken = await getCsrfToken(settings.getCsrfTokenFromHtml);
+      }
+      const highestPostNumber = topicData.highest_post_number;
+      let lastReadPostNumber;
+      // TODO: 需要修复修改后不生效的 bug
+      console.log(settings.readAllPostsInTopic);
+      if (settings.readAllPostsInTopic) {
+        lastReadPostNumber = 1;
+      } else {
+        lastReadPostNumber = topicData.last_read_post_number || 1;
+      }
+      const postNums = Array.from(
+        { length: highestPostNumber - lastReadPostNumber + 1 },
+        (v, k) => k + lastReadPostNumber,
+      );
+      addTask({
+        topicId: topicData.id,
+        postNums,
+        csrfToken,
+        maxReadPosts: settings.singlePostsReading,
+        actionType: '主动出击',
+      });
+    },
+    [addTask, settings.getCsrfTokenFromHtml, settings.readAllPostsInTopic, settings.singlePostsReading],
+  );
 
   /**
    * 拦截 topic url 逻辑
@@ -345,18 +400,22 @@ function App() {
     }
   };
 
-  const interceptXHR = (customOpen: VoidFunction, customSend: VoidFunction) => {
-
-  }
+  const interceptXHR = (customOpen: VoidFunction, customSend: VoidFunction) => {};
 
   const enableXMLHttpRequestHooks = () => {
     // @ts-ignore
     XMLHttpRequest.prototype.open = function (method, url, async, username, password) {
+      if (typeof url === 'string' && isTimingsUrl(url)) {
+        return;
+      }
+      if (url instanceof URL && isTimingsUrl(url.pathname)) {
+        return;
+      }
       // @ts-ignore
       // eslint-disable-next-line no-underscore-dangle,react/no-this-in-sfc
       this._custom_storage = { method, url };
       // @ts-ignore
-      // eslint-disable-next-line prefer-rest-params
+      // eslint-disable-next-line prefer-rest-params,consistent-return
       return nativeXHROpen.current.apply(this, arguments);
     };
 
@@ -392,23 +451,11 @@ function App() {
     // console.log(XMLHttpRequest.prototype.send);
   };
 
-  const init = () => {
-    // nativeXMLHttpRequestOpen.current = ensureNativeMethods(XMLHttpRequest.prototype.open);
-    // nativeXMLHttpRequestSend.current = ensureNativeMethods(XMLHttpRequest.prototype.send);
-    // console.log(nativeXMLHttpRequestOpen.current);
-    // console.log(nativeXMLHttpRequestSend.current);
-  };
-
-  useEffect(() => {
-    init();
-  }, []);
-
   useEffect(() => {
     const start = () => {
       enableXMLHttpRequestHooks();
       addLog('success', '助手已开启');
       addLog('success', '未读拦截已开启');
-      addInitTask();
     };
 
     const stop = () => {
@@ -429,31 +476,34 @@ function App() {
   }, [enableBrowseAssist]);
 
   useEffect(() => {
-    const readingOnce = async () => {
-      await randSleep(1000, 1000);
-      const isProcessing = taskQueue.some(value => value.status === 'processing');
-      if (enableBrowseAssist && !isProcessing) {
-        processQueue();
+    const processNextTask = async () => {
+      if (enableBrowseAssist && taskQueue.length > 0 && !processingRef.current) {
+        await randSleep(5000, 10000);
+        if (enableBrowseAssist && taskQueue.length > 0 && !processingRef.current) {
+          await processQueue();
+        }
       }
     };
 
-    const readingInfinite = async () => {
-      await randSleep(10000, 15000);
-      // TODO: 无法判断0
-      if (enableBrowseAssist && taskQueue.length === 0) {
-        addInitTask();
-      }
-    };
-
-    if (taskQueue.length >= 1) {
-      readingOnce();
+    if (enableBrowseAssist) {
+      processNextTask();
     }
+  }, [enableBrowseAssist, processQueue, taskQueue, taskQueue.length]);
 
-    if (taskQueue.length === 0) {
+  useEffect(() => {
+    const readingInfinite = async () => {
+      if (enableBrowseAssist && taskQueue.length === 0 && !processingRef.current) {
+        await randSleep(10000, 15000);
+        if (enableBrowseAssist && taskQueue.length === 0 && !processingRef.current) {
+          await addInitTask();
+        }
+      }
+    };
+
+    if (enableBrowseAssist) {
       readingInfinite();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enableBrowseAssist, taskQueue, taskQueue.length]);
+  }, [addInitTask, enableBrowseAssist, taskQueue, taskQueue.length]);
 
   return (
     <div>
@@ -493,7 +543,13 @@ function App() {
             style={{ flex: 0 }}
             icon="code"
           />
-          <FuncIconButton title="关闭" aria-label="关闭" onClick={settings.onCloseDialog} style={{ flex: 0 }} icon="xmark" />
+          <FuncIconButton
+            title="关闭"
+            aria-label="关闭"
+            onClick={settings.onCloseDialog}
+            style={{ flex: 0 }}
+            icon="xmark"
+          />
         </div>
         <div className="d-modal__body" style={{ padding: '0.5rem' }}>
           <div className={`${styles.dialogBodyName} ${switchContentCSS('console')}`}>

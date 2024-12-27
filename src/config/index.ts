@@ -3,7 +3,7 @@ export const DEFAULT_APP_SETTINGS = {
   singlePostsReading: 1000, // 单次阅读帖子数，控制 timings 请求 body 行为
   maxRetryTimes: 10, // 最大重试次数
   windowPeriodTopics: [[26306, 200]], // 空窗期随机阅读的帖子列表，[[<topic_id>, <阅读楼层数>]]
-  getCsrfTokenFromHtml: false, // 是否从 html 中获取 csrf token
+  getCsrfTokenFromHtml: true, // 是否从 html 中获取 csrf token
   maxLogLineNum: 100, // 日志最大条数
   uiWidth: "36rem", // ui 宽度
   uiQueueHeight: "100px", // ui 任务队列高度

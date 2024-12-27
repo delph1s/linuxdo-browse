@@ -10,7 +10,7 @@ export type TaskItemType = {
   postNums: number[];
   csrfToken: string;
   maxReadPosts: number;
-  actionType: '主动出击' | '无限月读';
+  actionType: '主动出击' | '无限月读' | '清理未读';
   status: 'pending' | 'processing' | 'completed' | 'retrying' | 'failed';
 };
 

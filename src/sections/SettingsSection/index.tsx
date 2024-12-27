@@ -18,7 +18,7 @@ function SettingsSection({ changeMe = 'changeMe', ...restProps }: SettingsSectio
           aria-label="重置"
           onClick={settings.onReset}
           style={{ flex: 0, background: 'var(--primary-very-low)', marginBottom: '0.5rem' }}
-          icon="history"
+          icon="arrow-rotate-left"
           disabled={!settings.canReset}
         />
       </div>
@@ -28,7 +28,6 @@ function SettingsSection({ changeMe = 'changeMe', ...restProps }: SettingsSectio
             <input
               type="checkbox"
               onChange={event => {
-                console.log(event.target.checked);
                 settings.onUpdateField('readAllPostsInTopic', event.target.checked);
               }}
               checked={settings.readAllPostsInTopic}

@@ -103,7 +103,7 @@ function ConsoleSection({ taskQueue, logs, statsData, onClearLogs, ...restProps 
             aria-label="清除日志"
             onClick={onClearLogs}
             style={{ flex: 0 }}
-            icon="far-trash-alt"
+            icon="far-trash-can"
           />
         </div>
         <ul

@@ -1,22 +1,46 @@
 import { useLocalStorage } from '@hooks/useLocalStorage';
 import { APP_SETTINGS_KEY } from '@src/config';
-import React, { createContext, ReactNode, useCallback, useMemo, useState } from 'react';
+import React, { createContext, ReactNode, useCallback, useMemo, useReducer, useState } from 'react';
 import { Merge } from 'type-fest';
 
+// State 类型定义
 export type SettingsState = {
-  readAllPostsInTopic: boolean, // 是否阅读主题所有帖子，false 从最后的内容开始看
-  singlePostsReading: number, // 单次阅读帖子数，控制 timings 请求 body 行为
-  maxRetryTimes: number, // 最大重试次数
-  windowPeriodTopics: number[][], // 空窗期随机阅读的帖子列表，[[<topic_id>, <阅读楼层数>]]
-  getCsrfTokenFromHtml: boolean, // 是否从 html 中获取 csrf token
-  maxLogLineNum: number, // 日志最大条数
-  uiWidth: number | string, // ui 宽度
-  uiQueueHeight: number | string, // ui 任务队列高度
-  uiLogHeight: number | string, // ui 日志高度
-  uiTagFontSize: number | string, // ui 标签字体大小
-  uiQueueFontSize: number | string, // ui 队列字体大小
-  uiLogFontSize: number | string, // ui 日志字体大小
+  readAllPostsInTopic: boolean; // 是否阅读主题所有帖子，false 从最后的内容开始看
+  singlePostsReading: number; // 单次阅读帖子数，控制 timings 请求 body 行为
+  maxRetryTimes: number; // 最大重试次数
+  windowPeriodTopics: number[][]; // 空窗期随机阅读的帖子列表，[[<topic_id>, <阅读楼层数>]]
+  getCsrfTokenFromHtml: boolean; // 是否从 html 中获取 csrf token
+  maxLogLineNum: number; // 日志最大条数
+  uiWidth: number | string; // ui 宽度
+  uiQueueHeight: number | string; // ui 任务队列高度
+  uiLogHeight: number | string; // ui 日志高度
+  uiTagFontSize: number | string; // ui 标签字体大小
+  uiQueueFontSize: number | string; // ui 队列字体大小
+  uiLogFontSize: number | string; // ui 日志字体大小
 };
+
+// Action 类型定义
+type SettingsAction =
+  | { type: 'RESET'; payload: SettingsState }
+  | { type: 'UPDATE_ALL'; payload: Partial<SettingsState> }
+  | { type: 'UPDATE_FIELD'; payload: { field: keyof SettingsState; value: SettingsState[keyof SettingsState] } };
+
+// Reducer 函数
+function settingsReducer(state: SettingsState, action: SettingsAction): SettingsState {
+  switch (action.type) {
+    case 'RESET':
+      return action.payload;
+    case 'UPDATE_ALL':
+      return { ...state, ...action.payload };
+    case 'UPDATE_FIELD':
+      return {
+        ...state,
+        [action.payload.field]: action.payload.value,
+      };
+    default:
+      return state;
+  }
+}
 
 export type SettingsCaches = 'localStorage';
 
@@ -40,15 +64,32 @@ export type SettingsContextValue = Merge<
   }
 >;
 
-export const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
+export const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export const SettingsConsumer = SettingsContext.Consumer;
 
 export function SettingsProvider({ settings, children, caches = 'localStorage' }: SettingsProviderProps) {
+  // 使用 useReducer
+  const [state, dispatch] = useReducer(settingsReducer, settings);
   const localStorage = useLocalStorage<SettingsState>(APP_SETTINGS_KEY, settings);
-
   // const values = caches === 'localStorage' ? localStorage : localStorage;
   const values = localStorage;
+
+  // 包装 dispatch 函数
+  const onReset = useCallback(() => {
+    dispatch({ type: 'RESET', payload: settings });
+    values.resetState();
+  }, [settings, values]);
+
+  const onUpdate = useCallback((updateValue: Partial<SettingsState>) => {
+    dispatch({ type: 'UPDATE_ALL', payload: updateValue });
+    values.setState(updateValue);
+  }, [values]);
+
+  const onUpdateField = useCallback((field: keyof SettingsState, value: SettingsState[keyof SettingsState]) => {
+    dispatch({ type: 'UPDATE_FIELD', payload: { field, value } });
+    values.setField(field, value);
+  }, [values]);
 
   const [openDialog, setOpenDialog] = useState<boolean>(false);
 
@@ -62,25 +103,25 @@ export function SettingsProvider({ settings, children, caches = 'localStorage' }
 
   const memorizedValue = useMemo(
     () => ({
-      ...values.state,
+      ...state,
       canReset: values.canReset,
-      onReset: values.resetState,
-      onUpdate: values.setState,
-      onUpdateField: values.setField,
+      onReset,
+      onUpdate,
+      onUpdateField,
       openDialog,
       onCloseDialog,
       onToggleDialog,
     }),
     [
+      state,
       values.canReset,
-      values.resetState,
-      values.setField,
-      values.setState,
-      values.state,
+      onReset,
+      onUpdate,
+      onUpdateField,
       openDialog,
       onCloseDialog,
       onToggleDialog,
-    ]
+    ],
   );
 
   return <SettingsContext.Provider value={memorizedValue}>{children}</SettingsContext.Provider>;
