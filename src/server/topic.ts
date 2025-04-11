@@ -4,6 +4,7 @@ export type TopicData = {
   last_read_post_number?: number;
 };
 
+// 用户相关接口
 type User = {
   id: number;
   username: string;
@@ -87,15 +88,15 @@ type TopicList = {
   topics: Topic[];
 };
 
-export type UnseenListData = {
+export type TopicListData = {
   users: User[];
   primary_groups: Group[];
   flair_groups: Group[];
   topic_list: TopicList;
 };
 
-export const getUnseenTopics = async (csrfToken: string) => {
-  const response = await fetch('https://linux.do/unseen.json', {
+export const getTopicList = async (url: string, csrfToken: string) => {
+  const response = await fetch(url, {
     headers: {
       accept: 'application/json, text/javascript, */*; q=0.01',
       'x-csrf-token': csrfToken,
@@ -107,8 +108,37 @@ export const getUnseenTopics = async (csrfToken: string) => {
     credentials: 'include',
   })
     .then(res => res.json())
-    .then((res: UnseenListData) => {
+    .then((res: TopicListData) => {
       return res.topic_list.topics;
+    })
+    .catch(err => {
+      console.error(err);
+      return [];
+    });
+
+  return response;
+};
+
+export const getTopicTrack = async (topicId: number, csrfToken: string) => {
+  const response = await fetch(`https://linux.do/t/${topicId}/1.json?track_visit=true&forceLoad=true`, {
+    headers: {
+      accept: 'application/json, text/javascript, */*; q=0.01',
+      'accept-language': 'en-US,en;q=0.9',
+      'discourse-logged-in': 'true',
+      'discourse-present': 'true',
+      'discourse-track-view': 'true',
+      'discourse-track-view-topic-id': `${topicId}`,
+      'x-csrf-token': csrfToken,
+      'x-requested-with': 'XMLHttpRequest',
+    },
+    body: null,
+    method: 'GET',
+    mode: 'cors',
+    credentials: 'include',
+  })
+    .then(res => res.json())
+    .then((res: any) => {
+      return res.id;
     })
     .catch(err => {
       console.error(err);

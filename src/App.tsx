@@ -6,7 +6,7 @@ import ConsoleSection from '@sections/ConsoleSection';
 import type { LogItemType, StatsDataType, TaskItemType } from '@sections/ConsoleSection/types';
 import SettingsSection from '@sections/SettingsSection';
 import { getCsrfToken } from '@server/core';
-import { getUnseenTopics, TopicData } from '@server/topic';
+import { getTopicList, getTopicTrack, TopicData } from '@server/topic';
 import { ensureNativeMethods, genRandId, isTimingsUrl, isTopicUrl, randInt, randSleep } from '@utils/core';
 import { dayjs } from '@utils/time';
 import nativeDayjs from 'dayjs';
@@ -142,6 +142,7 @@ function App() {
   const handleReadingPosts = useCallback(
     async (task: TaskItemType) => {
       const { topicId, postNums, csrfToken, maxReadPosts, actionType, status } = task;
+      const trackTopicId = await getTopicTrack(topicId, csrfToken);
 
       // 分批处理帖子
       const readingPostBatches = genReadingPostBatches(postNums, maxReadPosts);
@@ -159,9 +160,14 @@ function App() {
               method: 'POST',
               headers: {
                 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'discourse-background': 'true',
+                'discourse-logged-in': 'true',
+                'discourse-present': 'true',
                 'x-csrf-token': csrfToken,
                 'x-requested-with': 'XMLHttpRequest',
+                'x-silence-logger': 'true',
               },
+              referrer: `https://linux.do/t/topic/${topicId}/1`,
               body: readingRequestBody,
               mode: 'cors',
               credentials: 'include',
@@ -315,27 +321,49 @@ function App() {
     } else {
       csrfToken = await getCsrfToken(settings.getCsrfTokenFromHtml);
     }
-    const unseenTopics = await getUnseenTopics(csrfToken);
-    unseenTopics.forEach(unseenTopic => {
-      const highestPostNumber = unseenTopic.highest_post_number;
-      let lastReadPostNumber;
-      if (settings.readAllPostsInTopic) {
-        lastReadPostNumber = 1;
-      } else {
-        lastReadPostNumber = unseenTopic.last_read_post_number || 1;
-      }
-      const postNums = Array.from(
-        { length: highestPostNumber - lastReadPostNumber + 1 },
-        (v, k) => k + lastReadPostNumber,
-      );
+
+    // const unseenTopics = await getTopicList("https://linux.do/unseen.json?order=created&ascending=true", csrfToken);
+    // const unreadTopics = await getTopicList("https://linux.do/unread.json?order=created&ascending=true", csrfToken);
+    // const newTopics = await getTopicList("https://linux.do/new.json?order=created&ascending=true", csrfToken);
+
+    let unseenTopics = await getTopicList('https://linux.do/unseen.json?order=created&ascending=true', csrfToken);
+    if (unseenTopics.length === 0) {
+      unseenTopics = await getTopicList('https://linux.do/unread.json?order=created&ascending=true', csrfToken);
+    }
+    if (unseenTopics.length === 0) {
+      unseenTopics = await getTopicList('https://linux.do/new.json?order=created&ascending=true', csrfToken);
+    }
+    if (unseenTopics.length === 0) {
+      const postNums = Array.from({ length: 500 }, (v, k) => k + 1);
       addTask({
-        topicId: unseenTopic.id,
+        topicId: 111891,
         postNums,
         csrfToken,
         maxReadPosts: settings.singlePostsReading,
-        actionType: '清理未读',
+        actionType: '无限月读',
       });
-    });
+    } else {
+      unseenTopics.forEach(unseenTopic => {
+        const highestPostNumber = unseenTopic.highest_post_number;
+        let lastReadPostNumber;
+        if (settings.readAllPostsInTopic) {
+          lastReadPostNumber = 1;
+        } else {
+          lastReadPostNumber = unseenTopic.last_read_post_number || 1;
+        }
+        const postNums = Array.from(
+          { length: highestPostNumber - lastReadPostNumber + 1 },
+          (v, k) => k + lastReadPostNumber,
+        );
+        addTask({
+          topicId: unseenTopic.id,
+          postNums,
+          csrfToken,
+          maxReadPosts: settings.singlePostsReading,
+          actionType: '清理未读',
+        });
+      });
+    }
     // const windowPeriodTopicSelected = settings.windowPeriodTopics[randInt(0, settings.windowPeriodTopics.length - 1)];
     // const [windowPeriodTopicId, windowPeriodTopicNums] = windowPeriodTopicSelected;
     // const postNums = Array.from({ length: windowPeriodTopicNums }, (v, k) => k + 1);
@@ -478,7 +506,7 @@ function App() {
   useEffect(() => {
     const processNextTask = async () => {
       if (enableBrowseAssist && taskQueue.length > 0 && !processingRef.current) {
-        await randSleep(5000, 10000);
+        await randSleep(3000, 5000);
         if (enableBrowseAssist && taskQueue.length > 0 && !processingRef.current) {
           await processQueue();
         }
